@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>My Claude Code History</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     /* ── Reset ──────────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -19,6 +22,8 @@
       --text-secondary:#7aaac8;
       --link:          #288DFF;
 
+      --font: Figtree, Arial, sans-serif;
+
       --c1: #288DFF;   /* blue    */
       --c2: #27D3BC;   /* teal    */
       --c3: #FFC800;   /* yellow  */
@@ -33,7 +38,7 @@
       overflow: hidden;
       background: var(--surface);
       color: var(--text-primary);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font);
     }
 
     body {
@@ -281,7 +286,7 @@
       WordCloud(canvas, {
         list:            words,
         weightFactor:    weight,
-        fontFamily:      'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+        fontFamily:      getComputedStyle(document.documentElement).getPropertyValue('--font').trim(),
         fontWeight:      '700',
         color:           (word) => colorForWord(word),
         rotateRatio:     0.25,          // 25 % of words rotate 90°
@@ -334,6 +339,9 @@
         if (config.background_color) {
           document.documentElement.style.setProperty('--surface', config.background_color);
           document.documentElement.style.setProperty('--chrome', config.background_color);
+        }
+        if (config.font_family) {
+          document.documentElement.style.setProperty('--font', config.font_family);
         }
         if (Array.isArray(config.palette) && config.palette.length > 0) {
           PALETTE = config.palette;
