@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Claude Code History</title>
+  <style>
+    /* ── Reset ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── G2 brand palette ───────────────────────────────────────
+       Dark Navy #062846 · Rorange #FF492C · Purple #5746B2
+       Blue #288DFF · Teal #27D3BC · Yellow #FFC800              */
+    :root {
+      --surface:       #062846;
+      --chrome:        #083158;
+      --border:        #1a4a7a;
+      --text-primary:  #ffffff;
+      --text-secondary:#7aaac8;
+      --link:          #288DFF;
+
+      --c1: #288DFF;   /* blue    */
+      --c2: #27D3BC;   /* teal    */
+      --c3: #FFC800;   /* yellow  */
+      --c4: #FF492C;   /* rorange */
+      --c5: #5746B2;   /* purple  */
+    }
+
+    /* ── Base ───────────────────────────────────────────────────── */
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--surface);
+      color: var(--text-primary);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      flex-shrink: 0;
+      padding: 18px 24px 10px;
+      text-align: center;
+      /* subtle bottom separator */
+      border-bottom: 1px solid var(--border);
+      background: var(--chrome);
+    }
+
+    h1 {
+      font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+      font-weight: 600;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+      /* decorative accent under the title */
+      background: linear-gradient(90deg, var(--c1), var(--c5), var(--c4));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    #stats {
+      margin-top: 5px;
+      font-size: 0.78rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Canvas area ─────────────────────────────────────────────── */
+    #stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #wc {
+      display: block;
+      /* wordcloud2 sets canvas w/h in pixels; CSS just fills the space */
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Status overlays (loading / error) ──────────────────────── */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 32px;
+      text-align: center;
+      /* hidden by default; JS shows/hides */
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+
+    .overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #loading-overlay p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--c1);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #error-overlay h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    #error-overlay p {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      max-width: 480px;
+    }
+
+    .cmd {
+      display: inline-block;
+      background: var(--chrome);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.88rem;
+      color: var(--c1);
+      white-space: nowrap;
+    }
+
+    #error-overlay a {
+      color: var(--link);
+      text-decoration: none;
+    }
+
+    #error-overlay a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>My Claude Code History</h1>
+    <p id="stats">&nbsp;</p>
+  </header>
+
+  <div id="stage">
+    <!-- word cloud canvas -->
+    <canvas id="wc"></canvas>
+
+    <!-- loading state -->
+    <div id="loading-overlay" class="overlay visible">
+      <div class="spinner"></div>
+      <p>Loading word cloud…</p>
+    </div>
+
+    <!-- error state -->
+    <div id="error-overlay" class="overlay">
+      <h2 id="error-title">Could not load words.json</h2>
+      <p id="error-body"></p>
+      <span class="cmd" id="error-cmd"></span>
+      <p id="error-hint"></p>
+    </div>
+  </div>
+
+  <!-- wordcloud2.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
+
+  <script>
+    // Palette loaded from config.json; this fallback is used if config fails.
+    let PALETTE = ['#288DFF', '#27D3BC', '#FFC800', '#FF492C', '#5746B2'];
+
+    // ── DOM refs ──────────────────────────────────────────────────
+    const canvas        = document.getElementById('wc');
+    const stage         = document.getElementById('stage');
+    const statsEl       = document.getElementById('stats');
+    const loadingOvl    = document.getElementById('loading-overlay');
+    const errorOvl      = document.getElementById('error-overlay');
+    const errorTitle    = document.getElementById('error-title');
+    const errorBody     = document.getElementById('error-body');
+    const errorCmd      = document.getElementById('error-cmd');
+    const errorHint     = document.getElementById('error-hint');
+
+    // ── Helpers ───────────────────────────────────────────────────
+
+    /** Deterministic color per word so rerenders are stable. */
+    function colorForWord(word) {
+      let h = 0;
+      for (let i = 0; i < word.length; i++) {
+        h = Math.imul(31, h) + word.charCodeAt(i) | 0;
+      }
+      return PALETTE[Math.abs(h) % PALETTE.length];
+    }
+
+    function showLoading() {
+      loadingOvl.classList.add('visible');
+      errorOvl.classList.remove('visible');
+    }
+
+    function showError(isFileProtocol, isMissingFile) {
+      loadingOvl.classList.remove('visible');
+      if (isFileProtocol) {
+        errorTitle.textContent = 'A local server is required';
+        errorBody.textContent =
+          'Browsers block cross-origin file requests over file://, so words.json ' +
+          'cannot be loaded directly. Serve the folder with Python:';
+        errorCmd.textContent = 'python3 -m http.server 8000';
+        errorHint.innerHTML =
+          'Then open <a href="http://localhost:8000">http://localhost:8000</a> in your browser.';
+      } else if (isMissingFile) {
+        errorTitle.textContent = 'words.json not found';
+        errorBody.textContent =
+          'Generate it first by running the extractor script, then reload this page:';
+        errorCmd.textContent = 'python3 generate.py';
+        errorHint.textContent = 'Then reload this page (or run python3 -m http.server 8000 and open localhost:8000).';
+      } else {
+        errorTitle.textContent = 'Failed to load word data';
+        errorBody.textContent = 'An unexpected error occurred. Check the browser console for details.';
+        errorCmd.textContent = 'python3 generate.py && python3 -m http.server 8000';
+        errorHint.textContent = '';
+      }
+      errorOvl.classList.add('visible');
+    }
+
+    // ── Size canvas to physical pixels ────────────────────────────
+    function sizeCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      const w   = stage.offsetWidth;
+      const h   = stage.offsetHeight;
+      canvas.width  = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      // CSS dimensions stay at logical pixels so the element fills the stage
+      canvas.style.width  = w + 'px';
+      canvas.style.height = h + 'px';
+    }
+
+    // ── Render word cloud ─────────────────────────────────────────
+    function renderCloud(words) {
+      sizeCanvas();
+
+      const dpr    = window.devicePixelRatio || 1;
+      const counts = words.map(([, c]) => c);
+      const maxC   = Math.max(...counts);
+      const minC   = Math.min(...counts);
+      const sqrMax = Math.sqrt(maxC);
+      const sqrMin = Math.sqrt(Math.max(minC, 1));
+      const range  = sqrMax - sqrMin || 1;
+
+      // Target largest word ~120 logical px, smallest ~11 logical px.
+      // Multiply by dpr because wordcloud2 works in canvas (physical) pixels.
+      const minPx = 11  * dpr;
+      const maxPx = Math.min(120 * dpr, canvas.width * 0.18);
+
+      function weight(count) {
+        const t = (Math.sqrt(count) - sqrMin) / range;   // 0..1
+        return Math.round(minPx + t * (maxPx - minPx));
+      }
+
+      // Clear any previous render
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      WordCloud(canvas, {
+        list:            words,
+        weightFactor:    weight,
+        fontFamily:      'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+        fontWeight:      '700',
+        color:           (word) => colorForWord(word),
+        rotateRatio:     0.25,          // 25 % of words rotate 90°
+        rotationSteps:   2,             // only 0° and 90°
+        backgroundColor: 'transparent',
+        drawOutOfBound:  false,
+        shrinkToFit:     true,
+        shuffle:         true,
+        wait:            10,            // ms between words (lets browser breathe)
+        minSize:         8 * dpr,       // skip words that would render too tiny
+      });
+    }
+
+    // ── Stats line ────────────────────────────────────────────────
+    function updateStats(words) {
+      const unique = words.length;
+      const total  = words.reduce((sum, [, c]) => sum + c, 0);
+      statsEl.textContent =
+        `${unique.toLocaleString()} unique words · ` +
+        `${total.toLocaleString()} total occurrences across your Claude Code history`;
+    }
+
+    // ── Resize handler ────────────────────────────────────────────
+    let _words       = null;
+    let _resizeTimer = null;
+
+    window.addEventListener('resize', () => {
+      if (!_words) return;
+      clearTimeout(_resizeTimer);
+      _resizeTimer = setTimeout(() => renderCloud(_words), 250);
+    });
+
+    // ── Main: detect file://, fetch config + words, render ───────
+    if (window.location.protocol === 'file:') {
+      showError(true, false);
+    } else {
+      const configReq = fetch('./config.json')
+        .then(r => r.ok ? r.json() : {})
+        .catch(() => ({}));
+
+      const wordsReq = fetch('./words.json')
+        .then(res => {
+          if (res.status === 404) throw Object.assign(new Error('404'), { is404: true });
+          if (!res.ok)            throw new Error('HTTP ' + res.status);
+          return res.json();
+        });
+
+      Promise.all([configReq, wordsReq])
+        .then(([config, words]) => {
+          if (Array.isArray(config.palette) && config.palette.length > 0) {
+            PALETTE = config.palette;
+          }
+
+          if (!Array.isArray(words) || words.length === 0) {
+            throw Object.assign(new Error('empty'), { isEmpty: true });
+          }
+
+          _words = words.slice(0, 300);
+          loadingOvl.classList.remove('visible');
+          updateStats(words);
+          renderCloud(_words);
+        })
+        .catch(err => {
+          console.error('Word cloud error:', err);
+          showError(false, err.is404 || false);
+        });
+    }
+  </script>
+
+</body>
+</html>
