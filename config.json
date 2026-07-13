@@ -1,7 +1,13 @@
 {
   "history_path": "~/.claude/projects",
-  "background_color": "#000000",
+  "background_color": "#FFFFFF",
   "font_family": "Figtree, Arial, sans-serif",
   "palette": ["#288DFF", "#27D3BC", "#FFC800", "#FF492C", "#5746B2"],
-  "excluded_words": []
+  "excluded_words": [],
+  "max_words": 300,
+  "min_frequency": 2,
+  "min_word_length": 3,
+  "rotation": 0.25,
+  "spacing": 8,
+  "avoid_adjacent_colors": true
 }

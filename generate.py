@@ -19,6 +19,9 @@ def load_config() -> dict:
         "history_path": "~/.claude/projects",
         "palette": ["#288DFF", "#27D3BC", "#FFC800", "#FF492C", "#5746B2"],
         "excluded_words": [],
+        "max_words": 300,
+        "min_frequency": 2,
+        "min_word_length": 3,
     }
     if not config_path.exists():
         return defaults
@@ -186,6 +189,9 @@ def main() -> None:
     config = load_config()
     projects_dir = Path(config["history_path"]).expanduser()
     extra_excluded = set(w.lower() for w in config.get("excluded_words", []))
+    min_freq = int(config["min_frequency"])
+    min_len = int(config["min_word_length"])
+    max_words = int(config["max_words"])
     jsonl_files = sorted(projects_dir.glob("**/*.jsonl"))
 
     if not jsonl_files:
@@ -234,7 +240,7 @@ def main() -> None:
 
                         words = clean_text(text)
                         for w in words:
-                            if w not in STOP_WORDS and w not in extra_excluded:
+                            if len(w) >= min_len and w not in STOP_WORDS and w not in extra_excluded:
                                 counter[w] += 1
 
                     messages_processed += 1
@@ -243,30 +249,29 @@ def main() -> None:
             print(f"Warning: could not read {jsonl_path}: {exc}", file=sys.stderr)
 
     # Apply minimum frequency filter
-    filtered = {w: c for w, c in counter.items() if c >= 2}
+    filtered = {w: c for w, c in counter.items() if c >= min_freq}
 
     # Sort by frequency descending, then alphabetically for ties
     sorted_words = sorted(filtered.items(), key=lambda x: (-x[1], x[0]))
 
-    # Top 300
-    top_300 = sorted_words[:300]
+    top = sorted_words[:max_words]
 
     # Write words.json
     output_path = Path(__file__).parent / "words.json"
     with open(output_path, "w", encoding="utf-8") as fh:
-        json.dump(top_300, fh, ensure_ascii=False, indent=2)
+        json.dump(top, fh, ensure_ascii=False, indent=2)
 
     # Stats
     unique_words = len(filtered)
     print(f"Files scanned:       {len(jsonl_files)}")
     print(f"Messages processed:  {messages_processed}")
     print(f"Parse errors:        {parse_errors}")
-    print(f"Unique words (freq≥2): {unique_words}")
-    print(f"Words written:       {len(top_300)}")
+    print(f"Unique words (freq≥{min_freq}): {unique_words}")
+    print(f"Words written:       {len(top)}")
     print(f"Output:              {output_path}")
     print()
     print("Top 20 words:")
-    for word, count in top_300[:20]:
+    for word, count in top[:20]:
         print(f"  {count:>6}  {word}")
 
 

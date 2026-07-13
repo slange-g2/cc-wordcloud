@@ -190,8 +190,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/wordcloud2.js/1.2.2/wordcloud2.min.js"></script>
 
   <script>
-    // Palette loaded from config.json; this fallback is used if config fails.
+    // Defaults — overwritten by config.json values when loaded.
     let PALETTE = ['#288DFF', '#27D3BC', '#FFC800', '#FF492C', '#5746B2'];
+    let CONFIG  = { max_words: 300, rotation: 0.25, spacing: 8, avoid_adjacent_colors: true };
 
     // ── DOM refs ──────────────────────────────────────────────────
     const canvas        = document.getElementById('wc');
@@ -206,13 +207,10 @@
 
     // ── Helpers ───────────────────────────────────────────────────
 
-    /** Deterministic color per word so rerenders are stable. */
-    function colorForWord(word) {
+    function hashWord(word) {
       let h = 0;
-      for (let i = 0; i < word.length; i++) {
-        h = Math.imul(31, h) + word.charCodeAt(i) | 0;
-      }
-      return PALETTE[Math.abs(h) % PALETTE.length];
+      for (let i = 0; i < word.length; i++) h = Math.imul(31, h) + word.charCodeAt(i) | 0;
+      return Math.abs(h);
     }
 
     function showLoading() {
@@ -279,6 +277,17 @@
         return Math.round(minPx + t * (maxPx - minPx));
       }
 
+      // Per-render adjacent-color tracker (reset each time cloud is drawn).
+      let lastColorIdx = -1;
+      function colorForWord(word) {
+        let idx = hashWord(word) % PALETTE.length;
+        if (CONFIG.avoid_adjacent_colors && idx === lastColorIdx && PALETTE.length > 1) {
+          idx = (idx + 1) % PALETTE.length;
+        }
+        lastColorIdx = idx;
+        return PALETTE[idx];
+      }
+
       // Clear any previous render
       const ctx = canvas.getContext('2d');
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -288,15 +297,16 @@
         weightFactor:    weight,
         fontFamily:      getComputedStyle(document.documentElement).getPropertyValue('--font').trim(),
         fontWeight:      '700',
-        color:           (word) => colorForWord(word),
-        rotateRatio:     0.25,          // 25 % of words rotate 90°
-        rotationSteps:   2,             // only 0° and 90°
+        color:           colorForWord,
+        rotateRatio:     CONFIG.rotation ?? 0.25,
+        rotationSteps:   2,
+        gridSize:        Math.round((CONFIG.spacing ?? 8) * dpr),
         backgroundColor: 'transparent',
         drawOutOfBound:  false,
         shrinkToFit:     true,
         shuffle:         true,
-        wait:            10,            // ms between words (lets browser breathe)
-        minSize:         8 * dpr,       // skip words that would render too tiny
+        wait:            10,
+        minSize:         8 * dpr,
       });
     }
 
@@ -346,6 +356,7 @@
         if (Array.isArray(config.palette) && config.palette.length > 0) {
           PALETTE = config.palette;
         }
+        CONFIG = { ...CONFIG, ...config };
       });
 
       // Render once both config and words are ready.
@@ -355,7 +366,7 @@
             throw Object.assign(new Error('empty'), { isEmpty: true });
           }
 
-          _words = words.slice(0, 300);
+          _words = words.slice(0, CONFIG.max_words ?? 300);
           loadingOvl.classList.remove('visible');
           updateStats(words);
           renderCloud(_words);
