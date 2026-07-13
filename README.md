@@ -8,6 +8,8 @@ Generates a word cloud from your local Claude Code conversation history.
 ./start.sh
 ```
 
+![Word Cloud](image.png)
+
 ## Requirements
 
 - Python 3 (stdlib only — no pip install needed)

@@ -1,5 +1,6 @@
 {
   "history_path": "~/.claude/projects",
+  "background_color": "#000000",
   "palette": ["#288DFF", "#27D3BC", "#FFC800", "#FF492C", "#5746B2"],
   "excluded_words": []
 }

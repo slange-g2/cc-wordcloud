@@ -329,12 +329,20 @@
           return res.json();
         });
 
-      Promise.all([configReq, wordsReq])
-        .then(([config, words]) => {
-          if (Array.isArray(config.palette) && config.palette.length > 0) {
-            PALETTE = config.palette;
-          }
+      // Apply config (background + palette) as soon as it loads — don't wait for words.
+      configReq.then(config => {
+        if (config.background_color) {
+          document.documentElement.style.setProperty('--surface', config.background_color);
+          document.documentElement.style.setProperty('--chrome', config.background_color);
+        }
+        if (Array.isArray(config.palette) && config.palette.length > 0) {
+          PALETTE = config.palette;
+        }
+      });
 
+      // Render once both config and words are ready.
+      Promise.all([configReq, wordsReq])
+        .then(([, words]) => {
           if (!Array.isArray(words) || words.length === 0) {
             throw Object.assign(new Error('empty'), { isEmpty: true });
           }

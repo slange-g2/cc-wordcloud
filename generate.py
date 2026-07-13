@@ -93,7 +93,7 @@ STOP_WORDS = {
     "file", "code", "check", "run", "add", "will", "look", "looks",
     "thanks", "thank", "great", "nice", "sounds", "makes", "sense",
     "feels", "actually", "basically", "literally", "simply", "really",
-    "quite", "pretty", "sort", "kind", "bit", "lot", "few", "many",
+    "quite", "pretty", "sort", "kind", "xxx", "bit", "lot", "few", "many",
     "number", "string", "value", "type", "name", "class", "function",
     "method", "object", "return", "error", "test", "true", "false",
     "null", "undefined", "const", "var", "let", "def", "import",
